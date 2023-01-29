@@ -1,8 +1,9 @@
 import os
 import music21 as m21
 
-songs_path = "Data/test"
-acceptable_durations = [0.25, 0.5, 0.75, 1.0, 1.5, 2, 3, 4]
+SONGS_PATH = "Data/test"
+ACCEPTABLE_DURATIONS = [0.25, 0.5, 0.75, 1.0, 1.5, 2, 3, 4]
+SAVE = "Dataset"
 
 def load_songs(datset_path):
     songsList = []
@@ -12,12 +13,35 @@ def load_songs(datset_path):
                 songsList.append(m21.converter.parse(os.path.join(path, file)))
     return songsList
 
-def filter_durations(song, acceptable_durations):
+def filter_durations(song, ACCEPTABLE_DURATIONS):
 
     for note in song.flat.notesAndRests:
-        if note.duration.quarterLength not in acceptable_durations:
+        if note.duration.quarterLength not in ACCEPTABLE_DURATIONS:
             return False
     return True
+
+# Changing the music data to time series representation
+def encode_song(song, timeStamp = 0.25):
+
+    encoded_list = []
+    for event in song.flat.notesAndRests:
+
+        if isinstance (event, m21.note.Note):
+            symbol = event.pitch.midi
+        
+        if isinstance(event, m21.note.Rest):
+            symbol = "r"
+    
+        steps = int(event.duration.quarterLength / timeStamp)
+        for step in range(steps):
+            if step == 0:
+                encoded_list.append(symbol)
+            else:
+                encoded_list.append("_")
+
+    encoded_list = " ".join(map(str, encoded_list))
+    return encoded_list
+
 
 def transpose(song):
 
@@ -36,20 +60,30 @@ def transpose(song):
     elif key.mode == 'minor':
         interval = m21.interval.Interval(key.tonic, m21.pitch.Pitch("A"))
     
-    # Transposition
     transpose_song = song.transpose(interval)
     return transpose_song
-
+    
+    
 def preprocess(dataset_path):
     songs = load_songs(dataset_path)
     print(f"# songs loaded = {len(songs)}")
     
-    for song in songs:
-        if not filter_durations(song, acceptable_durations):
-            continue
+    for i, song in enumerate(songs):
 
+        # Filtering durations
+        if not filter_durations(song, ACCEPTABLE_DURATIONS):
+            continue
+        
+        # Transpoing
         song = transpose(song)
 
+         # Encoding
+        encoded_song = encode_song(song)
 
-preprocess(songs_path)
+        SAVE_songs = os.path.join(SAVE, str(i))
+        with open(SAVE_songs, "w") as fp:
+            fp.write(encoded_song)
+
+
+preprocess(SONGS_PATH)
 
