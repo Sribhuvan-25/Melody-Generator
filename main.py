@@ -1,9 +1,17 @@
 import os
 import music21 as m21
+import json
+# import tensorflow.keras as keras
+import tensorflow as tf
+import keras
+import numpy as np
 
 SONGS_PATH = "Data/test"
 ACCEPTABLE_DURATIONS = [0.25, 0.5, 0.75, 1.0, 1.5, 2, 3, 4]
 SAVE = "Dataset"
+SINGLE_FILE_PATH = "single_file"
+LENGTH = 64
+DICT_PATH = "dict.json"
 
 def load_songs(datset_path):
     songsList = []
@@ -74,7 +82,7 @@ def preprocess(dataset_path):
         if not filter_durations(song, ACCEPTABLE_DURATIONS):
             continue
         
-        # Transpoing
+        # Transpoing to C maj / A min
         song = transpose(song)
 
          # Encoding
@@ -83,7 +91,96 @@ def preprocess(dataset_path):
         SAVE_songs = os.path.join(SAVE, str(i))
         with open(SAVE_songs, "w") as fp:
             fp.write(encoded_song)
+    
+def load(path):
+    with open(path, "r") as fp:
+        song = fp.read()
+        return song
+
+def create_single_file(dataset_path, file_path, sequence_len):
+    delimeter = "/ " * sequence_len
+    songs = ""
+
+# Adding delimeters after loading the encoded songs
+    for path, subdir, files in os.walk(dataset_path):
+        for file in files:
+            filePath = os.path.join(path, file)
+            song = load(filePath)
+            songs = songs + song + " " + delimeter
+    # Take everything apart from the last character which is a space
+    songs = songs[:-1]
+
+    with open(file_path, "w") as fp:
+        fp.write(songs)
+    
+    return songs
+
+def mapping(songs, dict_path):
+    
+    dict = {}
+
+    songs = songs.split()
+    uniqueValues = list(set(songs))
+
+    for i, el in enumerate(uniqueValues):
+        dict[el] = i
+    
+    with open(dict_path, "w") as fp:
+        json.dump(dict, fp, indent=2)
+
+# Converting the song to a list of integers
+def convert_songs(songs):
+
+    intList = []    
+
+    # Mapping List
+    with open(DICT_PATH, "r") as fp:
+        dict = json.load(fp)
+    
+    # Converting string to list
+    songs = songs.split()
+
+    # Mapping every symbol in the songs list to int
+    for el in songs:
+        intList.append(dict[el])
+    
+    return intList
+
+# Generating training sequences, which are a subsets of time series music representation
+def training_sequence(sequence_length):
+    
+    songs = load(SINGLE_FILE_PATH)
+    mapped_songs = convert_songs(songs)
+
+    inputs = []
+    targets = []
+
+    # Generating sequences
+    # Predicting the next musical event in the melody
+    # 64 time steps for each training sample
+    total_sequences = len(mapped_songs) - sequence_length
+    for i in range(total_sequences):
+        # Ex: [1,2,3,4] [i: [1,2] -> t: [3]] [[2,3] -> [4]] 
+        inputs.append(mapped_songs[i:i+sequence_length])
+        targets.append(mapped_songs[i+sequence_length])
+    
+    # One Hot Ecnoding
+    # Inputs is a 2D array, (total_sequences, sequence_length, unique_elements)
+    # [[0,1,2],[1,1,2]] -> [[[1,0,0], [0,1,0], [0,0,1]], []]
+    #                           0         1        2
+    unique_elements = len(set(mapped_songs))
+    inputs = keras.utils.to_categorical(inputs, num_classes=unique_elements)
+    targets = np.array(targets)
+
+    return inputs, targets
 
 
-preprocess(SONGS_PATH)
+def main():
+    preprocess(SONGS_PATH)
+    songs = create_single_file(SAVE, SINGLE_FILE_PATH,  LENGTH)
+    mapping(songs, DICT_PATH)
+    inputs, targets = training_sequence(LENGTH)
+    print(inputs)
+    print(targets)
 
+main()
