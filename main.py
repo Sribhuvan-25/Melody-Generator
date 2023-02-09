@@ -2,7 +2,7 @@ import os
 import music21 as m21
 import json
 # import tensorflow.keras as keras
-import tensorflow as tf
+import tensorflow as ts
 import keras
 import numpy as np
 
